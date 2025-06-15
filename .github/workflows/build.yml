@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -27,32 +28,30 @@ jobs:
             zlib1g-dev
 
       - name: Configure & compile
-        working-directory: ${{ github.workspace }}
         run: |
           echo "Workspace root: $GITHUB_WORKSPACE"
-          # Remove any stale build folder to avoid nested directories
+          # Clean out any old build dir
           rm -rf build
           mkdir build
-          cd build
-          # Point CMake at the repo root where CMakeLists.txt lives
-          cmake "$GITHUB_WORKSPACE"
-          make -j$(nproc)
+          # -S = source dir, -B = build dir
+          cmake -S "$GITHUB_WORKSPACE" -B build
+          cmake --build build -- -j$(nproc)
 
       - name: Assemble dist folder
-        working-directory: ${{ github.workspace }}
         run: |
+          rm -rf dist
           mkdir -p dist
-          cd build
-          cp cgame.x86_64.so ../dist/
-          cp game.x86_64.so  ../dist/
-          cp launch_openmohaa_base.x86_64       ../dist/
-          cp launch_openmohaa_breakthrough.x86_64 ../dist/
-          cp launch_openmohaa_spearhead.x86_64  ../dist/
-          # These may not exist if libs are system-installed; ignore errors
-          cp libopenal.so.1   ../dist/ || true
-          cp libSDL2-2.0.so.0 ../dist/ || true
-          cp omohaaded.x86_64 ../dist/
-          cp openmohaa.x86_64 ../dist/
+          # copy the exact files you need from build
+          cp build/cgame.x86_64.so            dist/
+          cp build/game.x86_64.so             dist/
+          cp build/launch_openmohaa_base.x86_64       dist/
+          cp build/launch_openmohaa_breakthrough.x86_64 dist/
+          cp build/launch_openmohaa_spearhead.x86_64  dist/
+          # libraries may be in build/lib or installed system‑wide
+          cp build/libopenal.so.1   dist/ 2>/dev/null || true
+          cp build/libSDL2-2.0.so.0 dist/ 2>/dev/null || true
+          cp build/omohaaded.x86_64 dist/
+          cp build/openmohaa.x86_64 dist/
 
       - name: Upload full package artifact
         uses: actions/upload-artifact@v4
