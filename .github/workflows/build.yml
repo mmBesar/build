@@ -30,19 +30,15 @@ jobs:
             libsdl2-dev \
             libopenal-dev \
             libcurl4-openssl-dev
-        working-directory: ${{ github.workspace }}
 
       - name: Configure CMake
-        run: cmake -B .cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./.cmake/install
-        working-directory: ${{ github.workspace }}
+        run: cmake -S "${{ github.workspace }}" -B "${{ github.workspace }}/.cmake" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/.cmake/install"
 
       - name: Build
-        run: cmake --build .cmake --parallel
-        working-directory: ${{ github.workspace }}
+        run: cmake --build "${{ github.workspace }}/.cmake" --parallel
 
       - name: Install
-        run: cmake --install .cmake
-        working-directory: ${{ github.workspace }}
+        run: cmake --install "${{ github.workspace }}/.cmake"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
