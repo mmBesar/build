@@ -29,25 +29,24 @@ jobs:
 
       - name: Configure & compile
         run: |
-          echo "Workspace root: $GITHUB_WORKSPACE"
-          # Clean out any old build dir
+          echo "PWD = $(pwd)"
+          # Remove any old build folder in the repo root
           rm -rf build
-          mkdir build
-          # -S = source dir, -B = build dir
-          cmake -S "$GITHUB_WORKSPACE" -B build
+          # Create and build in 'build/'
+          cmake -S . -B build
           cmake --build build -- -j$(nproc)
 
       - name: Assemble dist folder
         run: |
           rm -rf dist
           mkdir -p dist
-          # copy the exact files you need from build
+          # Copy exactly the files you listed into dist/
           cp build/cgame.x86_64.so            dist/
           cp build/game.x86_64.so             dist/
           cp build/launch_openmohaa_base.x86_64       dist/
           cp build/launch_openmohaa_breakthrough.x86_64 dist/
           cp build/launch_openmohaa_spearhead.x86_64  dist/
-          # libraries may be in build/lib or installed system‑wide
+          # libs may or may not exist here; ignore errors
           cp build/libopenal.so.1   dist/ 2>/dev/null || true
           cp build/libSDL2-2.0.so.0 dist/ 2>/dev/null || true
           cp build/omohaaded.x86_64 dist/
