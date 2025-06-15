@@ -9,40 +9,46 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Build for AMD64
+    name: Build OpenMOHAA for amd64
 
     steps:
-      - name: Checkout source
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install -y build-essential cmake libsdl2-dev libglew-dev libopenal-dev libvorbis-dev
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            clang \
+            lld \
+            flex \
+            bison \
+            libsdl2-dev \
+            libopenal-dev \
+            libcurl4-openssl-dev
 
-      - name: Try build with Makefile (fallback if CMake not used)
+      - name: Configure with CMake
         run: |
-          if [ -f Makefile ]; then
-            make -j$(nproc)
-          elif [ -f CMakeLists.txt ]; then
-            mkdir build
-            cd build
-            cmake ..
-            make -j$(nproc)
-          else
-            echo "No Makefile or CMakeLists.txt found." >&2
-            exit 1
-          fi
+          mkdir .cmake
+          cd .cmake
+          cmake ../ -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install
 
-      - name: Upload build artifacts
-        if: success()
+      - name: Build project
+        run: |
+          cd .cmake
+          cmake --build . --parallel
+
+      - name: Install project
+        run: |
+          cd .cmake
+          cmake --install .
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openmohaa-amd64-build
-          path: |
-            build/
-            *.bin
-            *.so
-            openmohaa*
+          name: openmohaa-amd64
+          path: .cmake/install/
