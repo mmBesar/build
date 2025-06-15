@@ -9,21 +9,37 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout latest
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake pkg-config \
-            libsdl2-dev libopenal-dev libogg-dev libvorbis-dev libjpeg-dev zlib1g-dev
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            pkg-config \
+            libsdl2-dev \
+            libopenal-dev \
+            libogg-dev \
+            libvorbis-dev \
+            libjpeg-dev \
+            zlib1g-dev
 
       - name: Configure & compile
+        working-directory: ${{ github.workspace }}
         run: |
-          mkdir -p build && cd build
-          cmake .. && make -j$(nproc)
+          echo "Workspace root: $GITHUB_WORKSPACE"
+          # Remove any stale build folder to avoid nested directories
+          rm -rf build
+          mkdir build
+          cd build
+          # Point CMake at the repo root where CMakeLists.txt lives
+          cmake "$GITHUB_WORKSPACE"
+          make -j$(nproc)
 
       - name: Assemble dist folder
+        working-directory: ${{ github.workspace }}
         run: |
           mkdir -p dist
           cd build
@@ -32,14 +48,13 @@ jobs:
           cp launch_openmohaa_base.x86_64       ../dist/
           cp launch_openmohaa_breakthrough.x86_64 ../dist/
           cp launch_openmohaa_spearhead.x86_64  ../dist/
-          # if libs are installed system-wide these may not exist here
-          cp libopenal.so.1 ../dist/ || true
+          # These may not exist if libs are system-installed; ignore errors
+          cp libopenal.so.1   ../dist/ || true
           cp libSDL2-2.0.so.0 ../dist/ || true
           cp omohaaded.x86_64 ../dist/
           cp openmohaa.x86_64 ../dist/
-          cd ..
 
-      - name: Upload full package
+      - name: Upload full package artifact
         uses: actions/upload-artifact@v4
         with:
           name: openmohaa-full-package
