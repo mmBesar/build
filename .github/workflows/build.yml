@@ -1,67 +1,40 @@
-name: Build & Package OpenMoHAA
+# .github/workflows/build-openmohaa.yml
+name: Build OpenMOHAA
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
+  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    name: Build for AMD64
 
     steps:
-      - name: Checkout repository into `source/`
-        uses: actions/checkout@v3
+      - name: Checkout source
+        uses: actions/checkout@v4
         with:
-          path: source
+          submodules: recursive
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            pkg-config \
-            libsdl2-dev \
-            libopenal-dev \
-            libogg-dev \
-            libvorbis-dev \
-            libjpeg-dev \
-            zlib1g-dev
+          sudo apt update
+          sudo apt install -y build-essential cmake libsdl2-dev libglew-dev libopenal-dev libvorbis-dev
 
-      - name: Debug: show files in source/
+      - name: Configure project
         run: |
-          echo "PWD = $(pwd)"
-          echo "Contents of source/:"
-          ls -R source
+          mkdir -p build
+          cd build
+          cmake ..
 
-      - name: Configure & compile
+      - name: Build OpenMOHAA
         run: |
-          cd source
-          # Fresh build directory
-          rm -rf build
-          # CMake: -S = source dir, -B = build dir
-          cmake -S . -B build
-          cmake --build build -- -j$(nproc)
+          cd build
+          make -j$(nproc)
 
-      - name: Assemble dist folder
-        run: |
-          cd source
-          rm -rf dist
-          mkdir -p dist
-          # Copy exactly the files you need
-          cp build/cgame.x86_64.so            dist/
-          cp build/game.x86_64.so             dist/
-          cp build/launch_openmohaa_base.x86_64       dist/
-          cp build/launch_openmohaa_breakthrough.x86_64 dist/
-          cp build/launch_openmohaa_spearhead.x86_64  dist/
-          cp build/libopenal.so.1   dist/ 2>/dev/null || true
-          cp build/libSDL2-2.0.so.0 dist/ 2>/dev/null || true
-          cp build/omohaaded.x86_64 dist/
-          cp build/openmohaa.x86_64 dist/
-
-      - name: Upload full package artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: openmohaa-full-package
-          path: source/dist/
+          name: openmohaa-amd64-build
+          path: build/
