@@ -30,17 +30,21 @@ jobs:
             libsdl2-dev \
             libopenal-dev \
             libcurl4-openssl-dev
+        working-directory: ${{ github.workspace }}
 
-      - name: Configure project
+      - name: Configure CMake
         run: cmake -B .cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./.cmake/install
+        working-directory: ${{ github.workspace }}
 
-      - name: Build project
+      - name: Build
         run: cmake --build .cmake --parallel
+        working-directory: ${{ github.workspace }}
 
-      - name: Install project
+      - name: Install
         run: cmake --install .cmake
+        working-directory: ${{ github.workspace }}
 
-      - name: Upload build artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: openmohaa-amd64
