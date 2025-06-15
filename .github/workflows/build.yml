@@ -22,19 +22,27 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential cmake libsdl2-dev libglew-dev libopenal-dev libvorbis-dev
 
-      - name: Configure project
+      - name: Try build with Makefile (fallback if CMake not used)
         run: |
-          mkdir -p build
-          cd build
-          cmake ..
-
-      - name: Build OpenMOHAA
-        run: |
-          cd build
-          make -j$(nproc)
+          if [ -f Makefile ]; then
+            make -j$(nproc)
+          elif [ -f CMakeLists.txt ]; then
+            mkdir build
+            cd build
+            cmake ..
+            make -j$(nproc)
+          else
+            echo "No Makefile or CMakeLists.txt found." >&2
+            exit 1
+          fi
 
       - name: Upload build artifacts
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: openmohaa-amd64-build
-          path: build/
+          path: |
+            build/
+            *.bin
+            *.so
+            openmohaa*
