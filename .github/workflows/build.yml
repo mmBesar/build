@@ -25,15 +25,14 @@ jobs:
 
       - name: Assemble dist folder
         run: |
-          # create dist and copy binaries
           mkdir -p dist
           cd build
-          # copy your game/server binaries and modules
           cp cgame.x86_64.so ../dist/
           cp game.x86_64.so  ../dist/
-          cp launch_openmohaa_base.x86_64 ../dist/
+          cp launch_openmohaa_base.x86_64       ../dist/
           cp launch_openmohaa_breakthrough.x86_64 ../dist/
-          cp launch_openmohaa_spearhead.x86_64 ../dist/
+          cp launch_openmohaa_spearhead.x86_64  ../dist/
+          # if libs are installed system-wide these may not exist here
           cp libopenal.so.1 ../dist/ || true
           cp libSDL2-2.0.so.0 ../dist/ || true
           cp omohaaded.x86_64 ../dist/
@@ -41,7 +40,7 @@ jobs:
           cd ..
 
       - name: Upload full package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: openmohaa-full-package
           path: dist/
