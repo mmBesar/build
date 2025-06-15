@@ -10,8 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository into `source/`
         uses: actions/checkout@v3
+        with:
+          path: source
 
       - name: Install dependencies
         run: |
@@ -27,26 +29,32 @@ jobs:
             libjpeg-dev \
             zlib1g-dev
 
-      - name: Configure & compile
+      - name: Debug: show files in source/
         run: |
           echo "PWD = $(pwd)"
-          # Remove any old build folder in the repo root
+          echo "Contents of source/:"
+          ls -R source
+
+      - name: Configure & compile
+        run: |
+          cd source
+          # Fresh build directory
           rm -rf build
-          # Create and build in 'build/'
+          # CMake: -S = source dir, -B = build dir
           cmake -S . -B build
           cmake --build build -- -j$(nproc)
 
       - name: Assemble dist folder
         run: |
+          cd source
           rm -rf dist
           mkdir -p dist
-          # Copy exactly the files you listed into dist/
+          # Copy exactly the files you need
           cp build/cgame.x86_64.so            dist/
           cp build/game.x86_64.so             dist/
           cp build/launch_openmohaa_base.x86_64       dist/
           cp build/launch_openmohaa_breakthrough.x86_64 dist/
           cp build/launch_openmohaa_spearhead.x86_64  dist/
-          # libs may or may not exist here; ignore errors
           cp build/libopenal.so.1   dist/ 2>/dev/null || true
           cp build/libSDL2-2.0.so.0 dist/ 2>/dev/null || true
           cp build/omohaaded.x86_64 dist/
@@ -56,4 +64,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openmohaa-full-package
-          path: dist/
+          path: source/dist/
