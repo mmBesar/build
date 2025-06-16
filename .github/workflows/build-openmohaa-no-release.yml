@@ -1,9 +1,9 @@
-name: Build OpenMOHAA
+name: Build OpenMOHAA No Release
 
 on:
   push:
-    branches: [main]
-  pull_request:
+    paths:
+      - ".github/workflows/build-openmohaa-no-release.yml"
 
 jobs:
   build:
