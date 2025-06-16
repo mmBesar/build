@@ -30,7 +30,7 @@ jobs:
       - name: Build Parabot (x64)
         run: |
           cd parabot/dlls
-          make clean
+          rm -f ../parabot.so
           make PB_64BIT=1
           mkdir -p ../../out
           cp ../parabot.so ../../out/parabot_x64.so
