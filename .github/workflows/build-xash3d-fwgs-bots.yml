@@ -12,8 +12,14 @@ on:
       - main
 
 jobs:
-  build-amd64:
+
+  patch-and-build:
+    name: Build for ${{ matrix.arch }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, i386, arm64]
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -21,86 +27,56 @@ jobs:
           ref: bot10
           submodules: recursive
 
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential zip libsdl2-dev
+      - name: Apply Bot_Register patch
+        run: |
+          apply_patch << 'EOF'
+          *** Begin Patch
+          *** Update File: cl_dll/client.cpp
+          @@ void GiveFnptrsToDll(enginefuncs_t *pengfuncsFromEngine, globalvars_t *pGlobals) {
+             g_engfuncs = pengfuncsFromEngine;
+             g_globals = pGlobals;
+          +  Bot_Register();  // Ensure bots are registered
+          *** End Patch
+          EOF
 
-      - run: |
-          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
-                -B build-amd64 -S .
-          cmake --build build-amd64 -- -j$(nproc)
-
-      - run: |
-          zip -j bots-amd64.zip build-amd64/dlls/*.so || true
-          zip -j bots-amd64.zip build-amd64/cl_dll/*.so || true
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bots-amd64.zip
-          path: bots-amd64.zip
-
-  build-i386:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          repository: FWGS/hlsdk-portable
-          ref: bot10
-          submodules: recursive
-
-      - run: |
+      - name: Install build dependencies
+        run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential gcc-multilib g++-multilib zip \
-            libsdl2-2.0-0:i386
+          sudo apt-get install -y \
+            cmake build-essential zip \
+            gcc-multilib g++-multilib \
+            gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu \
+            libsdl2-dev libsdl2-2.0-0:i386
 
-      - run: |
-          cmake -DENABLE_BOTS=ON -D64BIT=0 -DCMAKE_BUILD_TYPE=Release \
-                -B build-i386 -S .
-          cmake --build build-i386 -- -j$(nproc)
+      - name: Configure & Build (bots enabled)
+        run: |
+          BUILD_DIR=build-${{ matrix.arch }}
+          cmake -DENABLE_BOTS=ON \
+                -D64BIT=$([ "${{ matrix.arch }}" = "i386" ] && echo 0 || echo 1) \
+                -DCMAKE_BUILD_TYPE=Release \
+                $([ "${{ matrix.arch }}" = "arm64" ] && echo "-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12") \
+                -B $BUILD_DIR -S .
+          cmake --build $BUILD_DIR -- -j$(nproc)
 
-      - run: |
-          zip -j bots-i386.zip build-i386/dlls/*.so || true
-          zip -j bots-i386.zip build-i386/cl_dll/*.so || true
+      - name: Zip `hl.so` and `bot.so`
+        run: |
+          ZIP=bots-${{ matrix.arch }}.zip
+          mkdir -p out
+          cp build-${{ matrix.arch }}/dlls/hl.so out/hl.so || true
+          cp build-${{ matrix.arch }}/dlls/bot.so out/bot.so || true
+          zip -j out/$ZIP out/hl.so out/bot.so
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: bots-i386.zip
-          path: bots-i386.zip
-
-  build-arm64:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          repository: FWGS/hlsdk-portable
-          ref: bot10
-          submodules: recursive
-
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential zip \
-            gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu libsdl2-dev
-
-      - run: |
-          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 \
-                -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12 \
-                -B build-arm64 -S .
-          cmake --build build-arm64 -- -j$(nproc)
-
-      - run: |
-          zip -j bots-arm64.zip build-arm64/dlls/*.so || true
-          zip -j bots-arm64.zip build-arm64/cl_dll/*.so || true
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bots-arm64.zip
-          path: bots-arm64.zip
+          name: bots-${{ matrix.arch }}.zip
+          path: out/bots-${{ matrix.arch }}.zip
 
   release:
+    name: Create Release
     runs-on: ubuntu-latest
-    needs: [build-amd64, build-i386, build-arm64]
+    needs: patch-and-build
     steps:
       - uses: actions/download-artifact@v4
         with: { name: bots-amd64.zip, path: . }
