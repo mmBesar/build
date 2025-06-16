@@ -6,6 +6,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write  # Required to create GitHub Releases
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,7 +21,7 @@ jobs:
       - name: Clone OpenMOHAA source
         run: git clone --recursive https://github.com/openmoh/openmohaa.git src
 
-      - name: Get OpenMOHAA source commit hash
+      - name: Get OpenMOHAA commit hash
         id: upstream
         run: |
           cd src
@@ -48,16 +51,17 @@ jobs:
       - name: Install
         run: cmake --install .cmake
 
-      - name: Zip binaries
+      - name: Zip the binaries
         run: |
           cd .cmake/install
           zip -r openmohaa-linux-amd64-${{ env.OM_COMMIT }}.zip *
+          mv openmohaa-linux-amd64-${{ env.OM_COMMIT }}.zip ${{ github.workspace }}/
 
-      - name: Create GitHub Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: OpenMoHAA
           name: "OpenMOHAA Pre-Beta Build ${{ env.OM_COMMIT }}"
-          files: .cmake/install/openmohaa-linux-amd64-${{ env.OM_COMMIT }}.zip
+          files: openmohaa-linux-amd64-${{ env.OM_COMMIT }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
