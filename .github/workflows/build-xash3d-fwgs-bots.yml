@@ -20,13 +20,14 @@ jobs:
         arch: [amd64, i386, arm64]
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout bot10 source
+        uses: actions/checkout@v3
         with:
           repository: FWGS/hlsdk-portable
           ref: bot10
           submodules: recursive
 
-      - name: Inject Bot_Register() into GiveFnptrsToDll
+      - name: Inject Bot_Register into game.cpp
         run: |
           FILE="dlls/game.cpp"
           if ! grep -q "Bot_Register" "$FILE"; then
@@ -39,7 +40,7 @@ extern void Bot_Register();' "$FILE"
             echo "Bot_Register already present."
           fi
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
@@ -49,7 +50,7 @@ extern void Bot_Register();' "$FILE"
             gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu \
             libsdl2-dev libsdl2-2.0-0:i386
 
-      - name: Configure & Build ${{ matrix.arch }}
+      - name: Configure and Build
         run: |
           BUILD=build-${{ matrix.arch }}
           if [ "${{ matrix.arch }}" = "arm64" ]; then
@@ -66,7 +67,7 @@ extern void Bot_Register();' "$FILE"
           fi
           cmake --build $BUILD -- -j$(nproc)
 
-      - name: Package .so artifacts
+      - name: Package .so files
         run: |
           ZIP=bots-${{ matrix.arch }}.zip
           mkdir -p out
@@ -77,31 +78,37 @@ extern void Bot_Register();' "$FILE"
           fi
           cd out && zip ../$ZIP *.so && cd ..
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: bots-${{ matrix.arch }}.zip
           path: bots-${{ matrix.arch }}.zip
 
   release:
+    name: Release All
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download amd64 zip
+        uses: actions/download-artifact@v4
         with:
           name: bots-amd64.zip
           path: .
 
-      - uses: actions/download-artifact@v4
+      - name: Download i386 zip
+        uses: actions/download-artifact@v4
         with:
           name: bots-i386.zip
           path: .
 
-      - uses: actions/download-artifact@v4
+      - name: Download arm64 zip
+        uses: actions/download-artifact@v4
         with:
           name: bots-arm64.zip
           path: .
 
-      - uses: softprops/action-gh-release@v1
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: xash3d-fwgs-bots
           name: Xash3D FWGS Bots
