@@ -1,0 +1,56 @@
+name: Build Parabot (x64)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-parabot.yml'
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Parabot
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make libsdl2-dev libx11-dev libgl1-mesa-dev
+
+      - name: Build Parabot (x64)
+        run: |
+          cd dlls
+          make clean
+          make PB_64BIT=1
+          mkdir -p out
+          cp ../parabot.so out/parabot_x64.so
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: parabot_x64.so
+          path: dlls/out/parabot_x64.so
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: parabot_x64.so
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: parabot-x64
+          name: Parabot (64-bit)
+          files: parabot_x64.so
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
