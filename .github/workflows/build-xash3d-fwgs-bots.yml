@@ -34,7 +34,7 @@ jobs:
               bash -xe -c "apt-get update && \
                 apt-get install -y cmake build-essential gcc-multilib g++-multilib libsdl2-dev && \
                 cmake -D64BIT=0 -DCMAKE_BUILD_TYPE=Release -B build -S . && \
-                cmake --build build -- -j$(nproc)"
+                cmake --build build -- -j\$(nproc)"
           elif [ "${{ matrix.arch }}" = "arm64" ]; then
             docker run --rm -v "$PWD":/src -w /src arm64v8/ubuntu:22.04 \
               bash -xe -c "apt-get update && \
@@ -75,16 +75,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: bots-amd64.zip
+          path: .
 
       - name: Download i386 artifact
         uses: actions/download-artifact@v4
         with:
           name: bots-i386.zip
+          path: .
 
       - name: Download arm64 artifact
         uses: actions/download-artifact@v4
         with:
           name: bots-arm64.zip
+          path: .
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v1
