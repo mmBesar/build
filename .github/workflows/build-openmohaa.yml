@@ -1,0 +1,63 @@
+# .github/workflows/build-openmohaa.yml
+name: Build OpenMOHAA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build OpenMOHAA Pre-Beta from upstream
+
+    steps:
+      - name: Checkout this CI repo
+        uses: actions/checkout@v4
+
+      - name: Clone OpenMOHAA source
+        run: git clone --recursive https://github.com/openmoh/openmohaa.git src
+
+      - name: Get OpenMOHAA source commit hash
+        id: upstream
+        run: |
+          cd src
+          COMMIT=$(git rev-parse --short HEAD)
+          echo "OM_COMMIT=$COMMIT" >> $GITHUB_ENV
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            clang \
+            lld \
+            flex \
+            bison \
+            libsdl2-dev \
+            libopenal-dev \
+            libcurl4-openssl-dev
+
+      - name: Configure CMake
+        run: cmake -S src -B .cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=.cmake/install
+
+      - name: Build
+        run: cmake --build .cmake --parallel
+
+      - name: Install
+        run: cmake --install .cmake
+
+      - name: Zip binaries
+        run: |
+          cd .cmake/install
+          zip -r openmohaa-linux-amd64-${{ env.OM_COMMIT }}.zip *
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: OpenMoHAA
+          name: "OpenMOHAA Pre-Beta Build ${{ env.OM_COMMIT }}"
+          files: .cmake/install/openmohaa-linux-amd64-${{ env.OM_COMMIT }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
