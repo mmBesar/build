@@ -1,14 +1,42 @@
-name: Build Bot10 AMD64 and Release
+name: Build Xash3D FWGS Bots
+
+# 🔒 Required for publishing releases
+permissions:
+  contents: write
 
 on:
+  workflow_dispatch:
   push:
+    # Trigger only if workflow file changes
+    paths:
+      - '.github/workflows/build-xash3d-fwgs-bots.yml'
+    # Also trigger for major commits
     branches:
       - bot10
-  workflow_dispatch:
 
 jobs:
+  filter-major-commits:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      run_build: ${{ steps.check_message.outputs.run_build }}
+    steps:
+      - name: Check for major commit
+        id: check_message
+        run: |
+          git fetch --depth=2
+          msg="$(git log -1 --pretty=%B)"
+          echo "Commit message: $msg"
+          if [[ "$msg" =~ (MAJOR|BREAKING|feat!\:) ]]; then
+            echo "run_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-release:
     name: Build bot10 and publish release
+    needs: filter-major-commits
+    if: github.event_name == 'workflow_dispatch' || needs.filter-major-commits.outputs.run_build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -36,8 +64,7 @@ jobs:
         find build -name '*.so' -exec cp {} release/ \;
 
     - name: Set release tag
-      run: |
-        echo "RELEASE_TAG=xash3d-fwgs-bots-$(date +'%Y%m%d')" >> $GITHUB_ENV
+      run: echo "RELEASE_TAG=xash3d-fwgs-bots-$(date +'%Y%m%d')" >> $GITHUB_ENV
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
