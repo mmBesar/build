@@ -12,36 +12,29 @@ on:
       - main
 
 jobs:
-
   build-amd64:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           repository: FWGS/hlsdk-portable
           ref: bot10
           submodules: recursive
 
-      - name: Install deps
-        run: |
+      - run: |
           sudo apt-get update
           sudo apt-get install -y cmake build-essential zip libsdl2-dev
 
-      - name: Build
-        run: |
-          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release -B build-amd64 -S .
+      - run: |
+          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
+                -B build-amd64 -S .
           cmake --build build-amd64 -- -j$(nproc)
 
-      - name: Zip
-        run: |
+      - run: |
           zip -j bots-amd64.zip build-amd64/dlls/*.so || true
-          if [ -d build-amd64/cl_dll ]; then
-            zip -j bots-amd64.zip build-amd64/cl_dll/*.so || true
-          fi
+          zip -j bots-amd64.zip build-amd64/cl_dll/*.so || true
 
-      - name: Upload
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: bots-amd64.zip
           path: bots-amd64.zip
@@ -49,35 +42,28 @@ jobs:
   build-i386:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           repository: FWGS/hlsdk-portable
           ref: bot10
           submodules: recursive
 
-      - name: Install deps
-        run: |
+      - run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y \
-            cmake build-essential gcc-multilib g++-multilib \
-            libsdl2-dev:i386 zip
+          sudo apt-get install -y cmake build-essential gcc-multilib g++-multilib zip \
+            libsdl2-2.0-0:i386
 
-      - name: Build
-        run: |
-          cmake -DENABLE_BOTS=ON -D64BIT=0 -DCMAKE_BUILD_TYPE=Release -B build-i386 -S .
+      - run: |
+          cmake -DENABLE_BOTS=ON -D64BIT=0 -DCMAKE_BUILD_TYPE=Release \
+                -B build-i386 -S .
           cmake --build build-i386 -- -j$(nproc)
 
-      - name: Zip
-        run: |
+      - run: |
           zip -j bots-i386.zip build-i386/dlls/*.so || true
-          if [ -d build-i386/cl_dll ]; then
-            zip -j bots-i386.zip build-i386/cl_dll/*.so || true
-          fi
+          zip -j bots-i386.zip build-i386/cl_dll/*.so || true
 
-      - name: Upload
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: bots-i386.zip
           path: bots-i386.zip
@@ -85,37 +71,29 @@ jobs:
   build-arm64:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           repository: FWGS/hlsdk-portable
           ref: bot10
           submodules: recursive
 
-      - name: Install deps
-        run: |
+      - run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            cmake build-essential zip libsdl2-dev \
-            gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu
+          sudo apt-get install -y cmake build-essential zip \
+            gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu libsdl2-dev
 
-      - name: Build
-        run: |
+      - run: |
           cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 \
                 -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12 \
                 -B build-arm64 -S .
           cmake --build build-arm64 -- -j$(nproc)
 
-      - name: Zip
-        run: |
+      - run: |
           zip -j bots-arm64.zip build-arm64/dlls/*.so || true
-          if [ -d build-arm64/cl_dll ]; then
-            zip -j bots-arm64.zip build-arm64/cl_dll/*.so || true
-          fi
+          zip -j bots-arm64.zip build-arm64/cl_dll/*.so || true
 
-      - name: Upload
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: bots-arm64.zip
           path: bots-arm64.zip
@@ -124,26 +102,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-amd64, build-i386, build-arm64]
     steps:
-      - name: Download amd64
-        uses: actions/download-artifact@v4
-        with:
-          name: bots-amd64.zip
-          path: .
+      - uses: actions/download-artifact@v4
+        with: { name: bots-amd64.zip, path: . }
+      - uses: actions/download-artifact@v4
+        with: { name: bots-i386.zip, path: . }
+      - uses: actions/download-artifact@v4
+        with: { name: bots-arm64.zip, path: . }
 
-      - name: Download i386
-        uses: actions/download-artifact@v4
-        with:
-          name: bots-i386.zip
-          path: .
-
-      - name: Download arm64
-        uses: actions/download-artifact@v4
-        with:
-          name: bots-arm64.zip
-          path: .
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v1
+      - uses: softprops/action-gh-release@v1
         with:
           tag_name: xash3d-fwgs-bots
           name: Xash3D FWGS Bots
