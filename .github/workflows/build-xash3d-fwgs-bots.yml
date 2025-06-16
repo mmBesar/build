@@ -28,13 +28,13 @@ jobs:
           submodules: recursive
 
       - name: Inject Bot_Register into game.cpp
+        shell: bash
         run: |
           FILE="dlls/game.cpp"
           if ! grep -q "Bot_Register" "$FILE"; then
             echo "Injecting Bot_Register into $FILE..."
-            sed -i $'1i\\\nextern void Bot_Register();' "$FILE"
-            sed -i '/g_engfuncs = pengfuncsFromEngine;/a\
-    Bot_Register();' "$FILE"
+            sed -i '1i extern void Bot_Register();' "$FILE"
+            sed -i '/g_engfuncs = pengfuncsFromEngine;/a Bot_Register();' "$FILE"
           else
             echo "Bot_Register already present."
           fi
