@@ -1,13 +1,15 @@
-# .github/workflows/build-openmohaa.yml
 name: Build OpenMOHAA
 
 on:
   push:
-    branches: [main]
-  pull_request:
+    paths:
+      - ".github/workflows/build-openmohaa.yml"
 
+  workflow_dispatch:
+
+# 🔒 Required for publishing releases
 permissions:
-  contents: write  # Required to create GitHub Releases
+  contents: write
 
 jobs:
   build:
@@ -51,17 +53,17 @@ jobs:
       - name: Install
         run: cmake --install .cmake
 
-      - name: Zip the binaries
+      - name: Zip the binaries (pre-beta)
         run: |
           cd .cmake/install
-          zip -r openmohaa-linux-amd64-${{ env.OM_COMMIT }}.zip *
-          mv openmohaa-linux-amd64-${{ env.OM_COMMIT }}.zip ${{ github.workspace }}/
+          zip -r openmohaa-pre-beta-linux-amd64-${{ env.OM_COMMIT }}.zip *
+          mv openmohaa-pre-beta-linux-amd64-${{ env.OM_COMMIT }}.zip ${{ github.workspace }}/
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: OpenMoHAA
           name: "OpenMOHAA Pre-Beta Build ${{ env.OM_COMMIT }}"
-          files: openmohaa-linux-amd64-${{ env.OM_COMMIT }}.zip
+          files: openmohaa-pre-beta-linux-amd64-${{ env.OM_COMMIT }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
