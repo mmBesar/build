@@ -1,0 +1,61 @@
+name: Build Xash3D FWGS Bot10 AMD64 and Release
+
+on:
+  push:
+    branches:
+      - bot10
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    name: Build bot10 and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout bot10 branch
+      uses: actions/checkout@v3
+      with:
+        repository: FWGS/hlsdk-portable
+        ref: bot10
+        submodules: recursive
+
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential gcc-multilib g++-multilib libsdl2-dev:i386
+
+    - name: Configure CMake
+      run: |
+        cmake -DCMAKE_BUILD_TYPE=Release -B build -S .
+
+    - name: Build bot.so (server library)
+      run: |
+        cmake --build build --target bot -- -j$(nproc)
+
+    - name: Package build artifacts
+      run: |
+        mkdir -p release
+        cp build/dlls/hl.so release/hl.so || true
+        cp build/bot.so release/bot.so || true
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: xash3d-fwgs-bots
+        release_name: Xash3D FWGS Bots
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: xash3d-fwgs-bots
+        files: release/*.so
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Confirm release
+      run: echo "Released files: $(ls release)"
