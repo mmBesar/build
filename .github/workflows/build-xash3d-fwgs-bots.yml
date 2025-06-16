@@ -1,72 +1,53 @@
 name: Build Xash3D FWGS Bots
 
-# 🔒 Required for publishing releases
 permissions:
   contents: write
 
 on:
   workflow_dispatch:
   push:
-    # Trigger only if workflow file changes
     paths:
       - '.github/workflows/build-xash3d-fwgs-bots.yml'
-    # Also trigger for major commits
     branches:
-      - bot10
+      - main
 
 jobs:
-  filter-major-commits:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    outputs:
-      run_build: ${{ steps.check_message.outputs.run_build }}
-    steps:
-      - name: Check for major commit
-        id: check_message
-        run: |
-          git fetch --depth=2
-          msg="$(git log -1 --pretty=%B)"
-          echo "Commit message: $msg"
-          if [[ "$msg" =~ (MAJOR|BREAKING|feat!\:) ]]; then
-            echo "run_build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run_build=false" >> "$GITHUB_OUTPUT"
-          fi
-
   build-and-release:
-    name: Build bot10 and publish release
-    needs: filter-major-commits
-    if: github.event_name == 'workflow_dispatch' || needs.filter-major-commits.outputs.run_build == 'true'
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '') || github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout bot10 branch
       uses: actions/checkout@v3
       with:
+        repository: FWGS/hlsdk-portable
+        ref: bot10
         submodules: recursive
 
     - name: Install build dependencies
       run: |
+        sudo dpkg --add-architecture i386
         sudo apt-get update
-        sudo apt-get install -y cmake build-essential gcc-multilib g++-multilib libsdl2-dev
+        sudo apt-get install -y cmake build-essential gcc-multilib g++-multilib libsdl2-dev libsdl2-dev:i386
 
-    - name: Configure CMake
+    - name: Configure with CMake (64-bit)
       run: |
-        cmake -DCMAKE_BUILD_TYPE=Release -B build -S .
+        cmake -D64BIT=1 -DCMAKE_BUILD_TYPE=Release -B build -S .
 
-    - name: Build shared libs
+    - name: Build bot.so / hl.so
       run: |
         cmake --build build -- -j$(nproc)
 
-    - name: Prepare release directory
+    - name: Collect artifacts
       run: |
         mkdir -p release
-        find build -name '*.so' -exec cp {} release/ \;
+        cp build/dlls/*.so release/ || true
+        cp build/cl_dll/*.so release/ || true
 
-    - name: Set release tag
-      run: echo "RELEASE_TAG=xash3d-fwgs-bots-$(date +'%Y%m%d')" >> $GITHUB_ENV
+    - name: Set dynamic tag
+      run: echo "RELEASE_TAG=xash3d-fwgs-bots-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
 
-    - name: Create GitHub Release
+    - name: Publish Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ env.RELEASE_TAG }}
