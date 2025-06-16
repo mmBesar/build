@@ -61,7 +61,7 @@ jobs:
           fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: bots-${{ matrix.arch }}.zip
           path: bots-${{ matrix.arch }}.zip
@@ -72,17 +72,17 @@ jobs:
     needs: build
     steps:
       - name: Download amd64 artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: bots-amd64.zip
 
       - name: Download i386 artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: bots-i386.zip
 
       - name: Download arm64 artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: bots-arm64.zip
 
