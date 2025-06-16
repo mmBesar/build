@@ -30,23 +30,33 @@ jobs:
             sed -i '/g_engfuncs = pengfuncsFromEngine;/a Bot_Register();' "$FILE"
           }
 
-      - name: Install dependencies
+      - name: Install deps
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake build-essential zip libsdl2-dev
 
-      - name: Build
+      - name: Build amd64
         run: |
-          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release -B build -S .
-          cmake --build build -- -j$(nproc)
+          BUILD="build-amd64"
+          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release -B $BUILD -S .
+          cmake --build $BUILD -- -j$(nproc)
 
-      - name: Package
+      - name: Package amd64
         run: |
-          mkdir out
-          cp build/dlls/hl.so out/hl.so || true
-          cp build/dlls/bot.so out/bot.so || true
-          cp build/cl_dll/client.so out/client.so || true
-          cd out && zip ../bots-amd64.zip *.so && cd ..
+          BUILD="build-amd64"
+          mkdir -p out
+          files=()
+          for f in hl.so bot.so client.so; do
+            if [ -f "$BUILD/dlls/$f" ]; then
+              cp "$BUILD/dlls/$f" "out/$f"
+              files+=("$f")
+            fi
+          done
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "Error: no .so files found for amd64!"
+            exit 1
+          fi
+          (cd out && zip -r ../bots-amd64.zip ${files[@]})
 
       - uses: actions/upload-artifact@v4
         with:
@@ -74,22 +84,31 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y \
-            cmake build-essential gcc-multilib g++-multilib \
+          sudo apt-get install -y cmake build-essential gcc-multilib g++-multilib \
             libsdl2-2.0-0:i386 zip
 
-      - name: Build
+      - name: Build i386
         run: |
-          cmake -DENABLE_BOTS=ON -D64BIT=0 -DCMAKE_BUILD_TYPE=Release -B build -S .
-          cmake --build build -- -j$(nproc)
+          BUILD="build-i386"
+          cmake -DENABLE_BOTS=ON -D64BIT=0 -DCMAKE_BUILD_TYPE=Release -B $BUILD -S .
+          cmake --build $BUILD -- -j$(nproc)
 
-      - name: Package
+      - name: Package i386
         run: |
-          mkdir out
-          cp build/dlls/hl.so out/hl.so || true
-          cp build/dlls/bot.so out/bot.so || true
-          cp build/cl_dll/client.so out/client.so || true
-          cd out && zip ../bots-i386.zip *.so && cd ..
+          BUILD="build-i386"
+          mkdir -p out
+          files=()
+          for f in hl.so bot.so client.so; do
+            if [ -f "$BUILD/dlls/$f" ]; then
+              cp "$BUILD/dlls/$f" "out/$f"
+              files+=("$f")
+            fi
+          done
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "Error: no .so files found for i386!"
+            exit 1
+          fi
+          (cd out && zip -r ../bots-i386.zip ${files[@]})
 
       - uses: actions/upload-artifact@v4
         with:
@@ -116,25 +135,34 @@ jobs:
       - name: Install arm64 deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            cmake build-essential zip libsdl2-dev \
+          sudo apt-get install -y cmake build-essential zip libsdl2-dev \
             gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu
 
-      - name: Build
+      - name: Build arm64
         run: |
+          BUILD="build-arm64"
           cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 \
             -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12 \
-            -B build -S .
-          cmake --build build -- -j$(nproc)
+            -B $BUILD -S .
+          cmake --build $BUILD -- -j$(nproc)
 
-      - name: Package
+      - name: Package arm64
         run: |
-          mkdir out
-          cp build/dlls/hl.so out/hl.so || true
-          cp build/dlls/bot.so out/bot.so || true
-          cp build/cl_dll/client.so out/client.so || true
-          cd out && zip ../bots-arm64.zip *.so && cd ..
+          BUILD="build-arm64"
+          mkdir -p out
+          files=()
+          for f in hl.so bot.so client.so; do
+            if [ -f "$BUILD/dlls/$f" ]; then
+              cp "$BUILD/dlls/$f" "out/$f"
+              files+=("$f")
+            fi
+          done
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "Error: no .so files found for arm64!"
+            exit 1
+          fi
+          (cd out && zip -r ../bots-arm64.zip ${files[@]})
 
       - uses: actions/upload-artifact@v4
         with:
@@ -143,18 +171,19 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-amd64, build-i386, build-arm64]
+    needs:
+      - build-amd64
+      - build-i386
+      - build-arm64
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: bots-amd64.zip
           path: .
-
       - uses: actions/download-artifact@v4
         with:
           name: bots-i386.zip
           path: .
-
       - uses: actions/download-artifact@v4
         with:
           name: bots-arm64.zip
