@@ -12,96 +12,150 @@ on:
       - main
 
 jobs:
-  build:
-    name: Build for ${{ matrix.arch }}
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [amd64, i386, arm64]
 
+  build-amd64:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout bot10 source
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           repository: FWGS/hlsdk-portable
           ref: bot10
           submodules: recursive
 
-      - name: Inject Bot_Register into game.cpp
-        shell: bash
+      - name: Inject Bot_Register
         run: |
           FILE="dlls/game.cpp"
-          if ! grep -q "Bot_Register" "$FILE"; then
-            echo "Injecting Bot_Register into $FILE..."
+          grep -q Bot_Register "$FILE" || {
             sed -i '1i extern void Bot_Register();' "$FILE"
             sed -i '/g_engfuncs = pengfuncsFromEngine;/a Bot_Register();' "$FILE"
-          else
-            echo "Bot_Register already present."
-          fi
+          }
 
-      - name: Install build dependencies
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential zip libsdl2-dev
+
+      - name: Build
+        run: |
+          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release -B build -S .
+          cmake --build build -- -j$(nproc)
+
+      - name: Package
+        run: |
+          mkdir out
+          cp build/dlls/hl.so out/hl.so || true
+          cp build/dlls/bot.so out/bot.so || true
+          cp build/cl_dll/client.so out/client.so || true
+          cd out && zip ../bots-amd64.zip *.so && cd ..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bots-amd64.zip
+          path: bots-amd64.zip
+
+  build-i386:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: FWGS/hlsdk-portable
+          ref: bot10
+          submodules: recursive
+
+      - name: Inject Bot_Register
+        run: |
+          FILE="dlls/game.cpp"
+          grep -q Bot_Register "$FILE" || {
+            sed -i '1i extern void Bot_Register();' "$FILE"
+            sed -i '/g_engfuncs = pengfuncsFromEngine;/a Bot_Register();' "$FILE"
+          }
+
+      - name: Install i386 deps
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt-get install -y \
-            cmake build-essential zip \
-            gcc-multilib g++-multilib \
-            gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu \
-            libsdl2-dev libsdl2-2.0-0:i386
+            cmake build-essential gcc-multilib g++-multilib \
+            libsdl2-2.0-0:i386 zip
 
-      - name: Configure and Build
+      - name: Build
         run: |
-          BUILD=build-${{ matrix.arch }}
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 \
-              -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12 \
-              -B $BUILD -S .
-          elif [ "${{ matrix.arch }}" = "i386" ]; then
-            cmake -DENABLE_BOTS=ON -D64BIT=0 -DCMAKE_BUILD_TYPE=Release \
-              -B $BUILD -S .
-          else
-            cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
-              -B $BUILD -S .
-          fi
-          cmake --build $BUILD -- -j$(nproc)
+          cmake -DENABLE_BOTS=ON -D64BIT=0 -DCMAKE_BUILD_TYPE=Release -B build -S .
+          cmake --build build -- -j$(nproc)
 
-      - name: Package .so files
+      - name: Package
         run: |
-          ZIP=bots-${{ matrix.arch }}.zip
-          mkdir -p out
-          cp build-${{ matrix.arch }}/dlls/hl.so out/hl.so || true
-          cp build-${{ matrix.arch }}/dlls/bot.so out/bot.so || true
-          if [ -f build-${{ matrix.arch }}/cl_dll/client.so ]; then
-            cp build-${{ matrix.arch }}/cl_dll/client.so out/client.so
-          fi
-          cd out && zip ../$ZIP *.so && cd ..
+          mkdir out
+          cp build/dlls/hl.so out/hl.so || true
+          cp build/dlls/bot.so out/bot.so || true
+          cp build/cl_dll/client.so out/client.so || true
+          cd out && zip ../bots-i386.zip *.so && cd ..
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: bots-${{ matrix.arch }}.zip
-          path: bots-${{ matrix.arch }}.zip
+          name: bots-i386.zip
+          path: bots-i386.zip
+
+  build-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: FWGS/hlsdk-portable
+          ref: bot10
+          submodules: recursive
+
+      - name: Inject Bot_Register
+        run: |
+          FILE="dlls/game.cpp"
+          grep -q Bot_Register "$FILE" || {
+            sed -i '1i extern void Bot_Register();' "$FILE"
+            sed -i '/g_engfuncs = pengfuncsFromEngine;/a Bot_Register();' "$FILE"
+          }
+
+      - name: Install arm64 deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake build-essential zip libsdl2-dev \
+            gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu
+
+      - name: Build
+        run: |
+          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 \
+            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12 \
+            -B build -S .
+          cmake --build build -- -j$(nproc)
+
+      - name: Package
+        run: |
+          mkdir out
+          cp build/dlls/hl.so out/hl.so || true
+          cp build/dlls/bot.so out/bot.so || true
+          cp build/cl_dll/client.so out/client.so || true
+          cd out && zip ../bots-arm64.zip *.so && cd ..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bots-arm64.zip
+          path: bots-arm64.zip
 
   release:
-    name: Release All
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build-amd64, build-i386, build-arm64]
     steps:
-      - name: Download amd64 zip
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: bots-amd64.zip
           path: .
 
-      - name: Download i386 zip
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: bots-i386.zip
           path: .
 
-      - name: Download arm64 zip
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: bots-arm64.zip
           path: .
