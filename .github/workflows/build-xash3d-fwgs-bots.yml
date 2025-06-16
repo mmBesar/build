@@ -34,21 +34,22 @@ jobs:
           sudo apt-get install -y \
             cmake build-essential zip \
             gcc-multilib g++-multilib \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu \
             libsdl2-dev:i386 libsdl2-dev
 
       - name: Configure & Build ${{ matrix.arch }}
         run: |
-          BUILD_DIR="build-${{ matrix.arch }}"
+          ARCH=${{ matrix.arch }}
+          BUILD_DIR=build-${ARCH}
 
-          if [ "${{ matrix.arch }}" = "i386" ]; then
+          if [ "$ARCH" = "i386" ]; then
             cmake -D64BIT=0 -DCMAKE_BUILD_TYPE=Release -B $BUILD_DIR -S .
             cmake --build $BUILD_DIR -- -j$(nproc)
 
-          elif [ "${{ matrix.arch }}" = "arm64" ]; then
+          elif [ "$ARCH" = "arm64" ]; then
             cmake -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-              -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+              -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 \
+              -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12 \
               -B $BUILD_DIR -S .
             cmake --build $BUILD_DIR -- -j$(nproc)
 
@@ -59,12 +60,12 @@ jobs:
       - name: Zip build outputs
         run: |
           ARCH=${{ matrix.arch }}
-          BUILD_DIR="build-${ARCH}"
-          OUT_ZIP="bots-${ARCH}.zip"
+          BUILD_DIR=build-${ARCH}
+          OUT_ZIP=bots-${ARCH}.zip
           mkdir -p out
-          zip -j "out/$OUT_ZIP" $BUILD_DIR/dlls/*.so || true
+          zip -j out/$OUT_ZIP $BUILD_DIR/dlls/*.so || true
           if [ -d $BUILD_DIR/cl_dll ]; then
-            zip -j "out/$OUT_ZIP" $BUILD_DIR/cl_dll/*.so || true
+            zip -j out/$OUT_ZIP $BUILD_DIR/cl_dll/*.so || true
           fi
 
       - name: Upload ${{ matrix.arch }} artifact
