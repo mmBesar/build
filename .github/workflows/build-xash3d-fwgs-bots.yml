@@ -12,8 +12,7 @@ on:
       - main
 
 jobs:
-
-  patch-and-build:
+  build:
     name: Build for ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
@@ -27,19 +26,20 @@ jobs:
           ref: bot10
           submodules: recursive
 
-      - name: Apply Bot_Register patch
+      - name: Inject Bot_Register() into GiveFnptrsToDll
         run: |
-          apply_patch << 'EOF'
-          *** Begin Patch
-          *** Update File: cl_dll/client.cpp
-          @@ void GiveFnptrsToDll(enginefuncs_t *pengfuncsFromEngine, globalvars_t *pGlobals) {
-             g_engfuncs = pengfuncsFromEngine;
-             g_globals = pGlobals;
-          +  Bot_Register();  // Ensure bots are registered
-          *** End Patch
-          EOF
+          FILE="dlls/game.cpp"
+          if ! grep -q "Bot_Register" "$FILE"; then
+            echo "Injecting Bot_Register into $FILE..."
+            sed -i '/g_engfuncs = pengfuncsFromEngine;/a\
+    Bot_Register();' "$FILE"
+            sed -i '1i\
+extern void Bot_Register();' "$FILE"
+          else
+            echo "Bot_Register already present."
+          fi
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
@@ -49,34 +49,42 @@ jobs:
             gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu \
             libsdl2-dev libsdl2-2.0-0:i386
 
-      - name: Configure & Build (bots enabled)
+      - name: Configure & Build ${{ matrix.arch }}
         run: |
-          BUILD_DIR=build-${{ matrix.arch }}
-          cmake -DENABLE_BOTS=ON \
-                -D64BIT=$([ "${{ matrix.arch }}" = "i386" ] && echo 0 || echo 1) \
-                -DCMAKE_BUILD_TYPE=Release \
-                $([ "${{ matrix.arch }}" = "arm64" ] && echo "-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12") \
-                -B $BUILD_DIR -S .
-          cmake --build $BUILD_DIR -- -j$(nproc)
+          BUILD=build-${{ matrix.arch }}
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 \
+              -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12 \
+              -B $BUILD -S .
+          elif [ "${{ matrix.arch }}" = "i386" ]; then
+            cmake -DENABLE_BOTS=ON -D64BIT=0 -DCMAKE_BUILD_TYPE=Release \
+              -B $BUILD -S .
+          else
+            cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
+              -B $BUILD -S .
+          fi
+          cmake --build $BUILD -- -j$(nproc)
 
-      - name: Zip `hl.so` and `bot.so`
+      - name: Package .so artifacts
         run: |
           ZIP=bots-${{ matrix.arch }}.zip
           mkdir -p out
           cp build-${{ matrix.arch }}/dlls/hl.so out/hl.so || true
           cp build-${{ matrix.arch }}/dlls/bot.so out/bot.so || true
-          zip -j out/$ZIP out/hl.so out/bot.so
+          if [ -f build-${{ matrix.arch }}/cl_dll/client.so ]; then
+            cp build-${{ matrix.arch }}/cl_dll/client.so out/client.so
+          fi
+          cd out && zip ../$ZIP *.so && cd ..
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: bots-${{ matrix.arch }}.zip
-          path: out/bots-${{ matrix.arch }}.zip
+          path: bots-${{ matrix.arch }}.zip
 
   release:
-    name: Create Release
     runs-on: ubuntu-latest
-    needs: patch-and-build
+    needs: build
     steps:
       - uses: actions/download-artifact@v4
         with: { name: bots-amd64.zip, path: . }
