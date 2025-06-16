@@ -87,11 +87,19 @@ extern void Bot_Register();' "$FILE"
     needs: build
     steps:
       - uses: actions/download-artifact@v4
-        with: { name: bots-amd64.zip, path: . }
+        with:
+          name: bots-amd64.zip
+          path: .
+
       - uses: actions/download-artifact@v4
-        with: { name: bots-i386.zip, path: . }
+        with:
+          name: bots-i386.zip
+          path: .
+
       - uses: actions/download-artifact@v4
-        with: { name: bots-arm64.zip, path: . }
+        with:
+          name: bots-arm64.zip
+          path: .
 
       - uses: softprops/action-gh-release@v1
         with:
