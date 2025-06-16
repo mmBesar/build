@@ -12,48 +12,90 @@ on:
       - main
 
 jobs:
-  build-and-release:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '') || github.event_name == 'push'
+  build:
+    name: Build for ${{ matrix.arch }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, i386, arm64]
 
     steps:
-    - name: Checkout bot10 branch
-      uses: actions/checkout@v3
-      with:
-        repository: FWGS/hlsdk-portable
-        ref: bot10
-        submodules: recursive
+      - name: Checkout bot10 branch
+        uses: actions/checkout@v3
+        with:
+          repository: FWGS/hlsdk-portable
+          ref: bot10
+          submodules: recursive
 
-    - name: Install build dependencies
-      run: |
-        sudo dpkg --add-architecture i386
-        sudo apt-get update
-        sudo apt-get install -y cmake build-essential gcc-multilib g++-multilib libsdl2-dev libsdl2-dev:i386
+      - name: Build ${{ matrix.arch }}
+        run: |
+          if [ "${{ matrix.arch }}" = "i386" ]; then
+            docker run --rm -v "$PWD":/src -w /src i386/debian:bookworm \
+              bash -xe -c "apt-get update && \
+                apt-get install -y cmake build-essential gcc-multilib g++-multilib libsdl2-dev && \
+                cmake -D64BIT=0 -DCMAKE_BUILD_TYPE=Release -B build -S . && \
+                cmake --build build -- -j$(nproc)"
+          elif [ "${{ matrix.arch }}" = "arm64" ]; then
+            docker run --rm -v "$PWD":/src -w /src arm64v8/ubuntu:22.04 \
+              bash -xe -c "apt-get update && \
+                apt-get install -y cmake build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libsdl2-dev && \
+                mkdir build && cd build && \
+                cmake -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
+                  -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+                  .. && \
+                make -j\$(nproc)"
+          else
+            sudo dpkg --add-architecture i386
+            sudo apt-get update
+            sudo apt-get install -y cmake build-essential gcc-multilib g++-multilib libsdl2-dev:i386
+            cmake -D64BIT=1 -DCMAKE_BUILD_TYPE=Release -B build -S .
+            cmake --build build -- -j$(nproc)
+          fi
 
-    - name: Configure with CMake (64-bit)
-      run: |
-        cmake -D64BIT=1 -DCMAKE_BUILD_TYPE=Release -B build -S .
+      - name: Zip artifacts
+        run: |
+          zip -j bots-${{ matrix.arch }}.zip build/dlls/*.so || true
+          if [ -d build/cl_dll ]; then
+            zip -j bots-${{ matrix.arch }}.zip build/cl_dll/*.so || true
+          fi
 
-    - name: Build bot.so / hl.so
-      run: |
-        cmake --build build -- -j$(nproc)
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: bots-${{ matrix.arch }}.zip
+          path: bots-${{ matrix.arch }}.zip
 
-    - name: Collect artifacts
-      run: |
-        mkdir -p release
-        cp build/dlls/*.so release/ || true
-        cp build/cl_dll/*.so release/ || true
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download amd64 artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: bots-amd64.zip
 
-    - name: Set dynamic tag
-      run: echo "RELEASE_TAG=xash3d-fwgs-bots-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
+      - name: Download i386 artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: bots-i386.zip
 
-    - name: Publish Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ env.RELEASE_TAG }}
-        name: Xash3D FWGS Bots
-        files: release/*.so
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: bots-arm64.zip
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: xash3d-fwgs-bots
+          name: Xash3D FWGS Bots
+          files: |
+            bots-amd64.zip
+            bots-i386.zip
+            bots-arm64.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
