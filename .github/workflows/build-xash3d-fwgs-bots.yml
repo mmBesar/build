@@ -30,7 +30,7 @@ jobs:
 
       - name: Build
         run: |
-          cmake -D64BIT=1 -DCMAKE_BUILD_TYPE=Release -B build-amd64 -S .
+          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release -B build-amd64 -S .
           cmake --build build-amd64 -- -j$(nproc)
 
       - name: Zip
@@ -60,11 +60,13 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential gcc-multilib g++-multilib libsdl2-dev:i386 zip
+          sudo apt-get install -y \
+            cmake build-essential gcc-multilib g++-multilib \
+            libsdl2-dev:i386 zip
 
       - name: Build
         run: |
-          cmake -D64BIT=0 -DCMAKE_BUILD_TYPE=Release -B build-i386 -S .
+          cmake -DENABLE_BOTS=ON -D64BIT=0 -DCMAKE_BUILD_TYPE=Release -B build-i386 -S .
           cmake --build build-i386 -- -j$(nproc)
 
       - name: Zip
@@ -93,11 +95,13 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu libsdl2-dev zip
+          sudo apt-get install -y \
+            cmake build-essential zip libsdl2-dev \
+            gcc-12-aarch64-linux-gnu g++-12-aarch64-linux-gnu
 
       - name: Build
         run: |
-          cmake -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
+          cmake -DENABLE_BOTS=ON -D64BIT=1 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc-12 \
                 -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-12 \
                 -B build-arm64 -S .
