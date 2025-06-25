@@ -3,9 +3,14 @@ name: Build HL SDK bots (amd64 & arm64)
 
 on:
   push:
-    branches: [ bot10 ]
-  pull_request:
-    branches: [ bot10 ]
+    paths:
+      - ".github/workflows/build-hl-bots.yml"
+
+  workflow_dispatch:
+
+# 🔒 Required for publishing releases
+permissions:
+  contents: write
 
 jobs:
   build-bots:
