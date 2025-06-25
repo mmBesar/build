@@ -1,5 +1,9 @@
 # .github/workflows/build-hl-bots.yml
 
+# 🔒 Required for publishing releases
+permissions:
+  contents: write
+
 name: Build HLSDK Bot10 & Xash3D FWGS
 
 on:
@@ -10,11 +14,6 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-
-
-# 🔒 Required for publishing releases
-permissions:
-  contents: write
 
 jobs:
   build:
@@ -37,8 +36,8 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential cmake git python3 python3-pip
-        sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libasound2-dev libpulse-dev
-        sudo apt-get install -y libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev
+        sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libasound2-dev
+        sudo apt-get install -y libx11-dev libxext-dev libxrandr-dev
     
     - name: Clone HLSDK Portable (bot10 branch)
       run: |
@@ -53,7 +52,7 @@ jobs:
       run: |
         cd hlsdk-portable
         mkdir build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON -Wno-dev
         make -j$(nproc)
         
         # Copy the built hl.so
@@ -65,7 +64,7 @@ jobs:
       run: |
         cd hlsdk-portable
         mkdir build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON \
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON -Wno-dev \
           -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
           -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
           -DCMAKE_SYSTEM_NAME=Linux \
@@ -80,14 +79,13 @@ jobs:
       if: matrix.arch == 'amd64'
       run: |
         cd xash3d-fwgs
-        python3 waf configure --build-type=release --enable-stb --disable-werror
-        python3 waf build
+        python3 waf configure --build-type=release --disable-werror --enable-stb
+        python3 waf build -j$(nproc)
         
         # Copy binaries
         mkdir -p ../artifacts/amd64/xash3d
-        cp build/engine/xash3d ../artifacts/amd64/xash3d/
-        cp build/game_launch/xash3d.bin ../artifacts/amd64/xash3d/ || true
-        find build -name "*.so" -exec cp {} ../artifacts/amd64/xash3d/ \; || true
+        find build -name "xash3d" -executable -type f -exec cp {} ../artifacts/amd64/xash3d/ \;
+        find build -name "*.so" -exec cp {} ../artifacts/amd64/xash3d/ \;
     
     - name: Build Xash3D FWGS (ARM64)
       if: matrix.arch == 'arm64'
@@ -95,14 +93,13 @@ jobs:
         cd xash3d-fwgs
         export CC=aarch64-linux-gnu-gcc
         export CXX=aarch64-linux-gnu-g++
-        python3 waf configure --build-type=release --enable-stb --disable-werror --target=aarch64-linux-gnu
-        python3 waf build
+        python3 waf configure --build-type=release --disable-werror --enable-stb
+        python3 waf build -j$(nproc)
         
-        # Copy binaries
+        # Copy binaries  
         mkdir -p ../artifacts/arm64/xash3d
-        cp build/engine/xash3d ../artifacts/arm64/xash3d/
-        cp build/game_launch/xash3d.bin ../artifacts/arm64/xash3d/ || true
-        find build -name "*.so" -exec cp {} ../artifacts/arm64/xash3d/ \; || true
+        find build -name "xash3d" -executable -type f -exec cp {} ../artifacts/arm64/xash3d/ \;
+        find build -name "*.so" -exec cp {} ../artifacts/arm64/xash3d/ \;
     
     - name: Verify build artifacts
       run: |
