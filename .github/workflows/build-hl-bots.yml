@@ -1,0 +1,68 @@
+# .github/workflows/build-hl-bots.yml
+name: Build HL SDK bots (amd64 & arm64)
+
+on:
+  push:
+    branches: [ bot10 ]
+  pull_request:
+    branches: [ bot10 ]
+
+jobs:
+  build-bots:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [ amd64, arm64 ]
+    env:
+      # Map our matrix.arch to CMake and Waf flags
+      CMAKE_BITS: ${{ matrix.arch == 'amd64' && ' ' || ' ' }}${{ matrix.arch == 'amd64' && '-D64BIT=1' || '-D64BIT=1' }}
+      WAF_FLAGS: ${{ matrix.arch == 'amd64' && '' || '-8' }}
+    steps:
+      - name: Checkout hlsdk-portable (bot10)
+        uses: actions/checkout@v3
+        with:
+          repository: FWGS/hlsdk-portable
+          ref: bot10
+          submodules: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libsdl2-dev libfreetype6-dev \
+            libopus-dev libbz2-dev libvorbis-dev libopusfile-dev libogg-dev
+
+      - name: Build hlsdk-portable (libhl.so)
+        run: |
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release $CMAKE_BITS ..
+          cmake --build . --parallel
+          # Copy out the plugin as a per-arch file
+          cp dlls/libhl.so $GITHUB_WORKSPACE/libhl-${{ matrix.arch }}.so
+        # hl.so is the GoldSource server DLL renamed on Linux :contentReference[oaicite:0]{index=0}
+
+      - name: Checkout xash3d-fwgs
+        uses: actions/checkout@v3
+        with:
+          repository: FWGS/xash3d-fwgs
+          path: xash3d-fwgs
+          submodules: true
+
+      - name: Build Xash3D FWGS (hl.so)
+        working-directory: xash3d-fwgs
+        run: |
+          # Configure Waf; pass '-8' for 64-bit engines :contentReference[oaicite:1]{index=1}
+          ./waf configure $WAF_FLAGS
+          ./waf build
+          # Install into a staging directory
+          ./waf install --destdir=$GITHUB_WORKSPACE/xash-dist-${{ matrix.arch }}
+          # Copy the built engine plugin (hl.so)
+          cp xash-dist-${{ matrix.arch }}/lib/xash/${{ matrix.arch }}/hl.so \
+             $GITHUB_WORKSPACE/hl-${{ matrix.arch }}.so
+
+      - name: Upload built bots for ${{ matrix.arch }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: hl-bots-${{ matrix.arch }}
+          path: |
+            libhl-${{ matrix.arch }}.so
+            hl-${{ matrix.arch }}.so
