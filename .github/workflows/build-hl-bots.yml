@@ -4,7 +4,7 @@
 permissions:
   contents: write
 
-name: Build HLSDK Bot10 & Xash3D FWGS
+name: Build HLSDK Bot10
 
 on:
   push:
@@ -16,144 +16,125 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-amd64:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Set up cross-compilation for ARM64
-      if: matrix.arch == 'arm64'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-    
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake git python3 python3-pip
-        sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libasound2-dev
-        sudo apt-get install -y libx11-dev libxext-dev libxrandr-dev
+        sudo apt-get install -y build-essential cmake git
     
     - name: Clone HLSDK Portable (bot10 branch)
       run: |
-        git clone --depth 1 --branch bot10 https://github.com/FWGS/hlsdk-portable.git hlsdk-portable
-    
-    - name: Clone Xash3D FWGS
-      run: |
-        git clone --depth 1 https://github.com/FWGS/xash3d-fwgs.git xash3d-fwgs
+        git clone --depth 1 --branch bot10 https://github.com/FWGS/hlsdk-portable.git
     
     - name: Build HLSDK Bot10 (AMD64)
-      if: matrix.arch == 'amd64'
       run: |
         cd hlsdk-portable
         mkdir build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON -Wno-dev
-        make -j$(nproc)
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON -D64BIT=ON -Wno-dev
+        make -j$(nproc) hl
         
-        # Copy the built hl.so
-        mkdir -p ../../artifacts/amd64
-        cp dlls/hl.so ../../artifacts/amd64/hl.so
+        # Verify and copy hl.so
+        ls -la dlls/
+        file dlls/hl.so
+        mkdir -p ../../artifacts
+        cp dlls/hl.so ../../artifacts/hl_amd64.so
+    
+    - name: Upload AMD64 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: hl-bot-amd64
+        path: artifacts/hl_amd64.so
+
+  build-arm64:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install cross-compilation tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake git gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+    
+    - name: Clone HLSDK Portable (bot10 branch)
+      run: |
+        git clone --depth 1 --branch bot10 https://github.com/FWGS/hlsdk-portable.git
     
     - name: Build HLSDK Bot10 (ARM64)
-      if: matrix.arch == 'arm64'
       run: |
         cd hlsdk-portable
         mkdir build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON -Wno-dev \
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DGOLDSOURCE_SUPPORT=ON \
+          -D64BIT=ON \
           -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
           -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
           -DCMAKE_SYSTEM_NAME=Linux \
-          -DCMAKE_SYSTEM_PROCESSOR=aarch64
-        make -j$(nproc)
+          -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+          -Wno-dev
+        make -j$(nproc) hl
         
-        # Copy the built hl.so
-        mkdir -p ../../artifacts/arm64
-        cp dlls/hl.so ../../artifacts/arm64/hl.so
+        # Verify and copy hl.so
+        ls -la dlls/
+        file dlls/hl.so
+        mkdir -p ../../artifacts
+        cp dlls/hl.so ../../artifacts/hl_arm64.so
     
-    - name: Build Xash3D FWGS (AMD64)
-      if: matrix.arch == 'amd64'
-      run: |
-        cd xash3d-fwgs
-        python3 waf configure --build-type=release --disable-werror --enable-stb
-        python3 waf build -j$(nproc)
-        
-        # Copy binaries
-        mkdir -p ../artifacts/amd64/xash3d
-        find build -name "xash3d" -executable -type f -exec cp {} ../artifacts/amd64/xash3d/ \;
-        find build -name "*.so" -exec cp {} ../artifacts/amd64/xash3d/ \;
-    
-    - name: Build Xash3D FWGS (ARM64)
-      if: matrix.arch == 'arm64'
-      run: |
-        cd xash3d-fwgs
-        export CC=aarch64-linux-gnu-gcc
-        export CXX=aarch64-linux-gnu-g++
-        python3 waf configure --build-type=release --disable-werror --enable-stb
-        python3 waf build -j$(nproc)
-        
-        # Copy binaries  
-        mkdir -p ../artifacts/arm64/xash3d
-        find build -name "xash3d" -executable -type f -exec cp {} ../artifacts/arm64/xash3d/ \;
-        find build -name "*.so" -exec cp {} ../artifacts/arm64/xash3d/ \;
-    
-    - name: Verify build artifacts
-      run: |
-        echo "=== Build Artifacts for ${{ matrix.arch }} ==="
-        find artifacts/${{ matrix.arch }} -type f -name "*.so" -o -name "xash3d*" | head -20
-        
-        # Check if hl.so exists and get file info
-        if [ -f "artifacts/${{ matrix.arch }}/hl.so" ]; then
-          echo "✓ hl.so found for ${{ matrix.arch }}"
-          file artifacts/${{ matrix.arch }}/hl.so
-          ls -la artifacts/${{ matrix.arch }}/hl.so
-        else
-          echo "✗ hl.so not found for ${{ matrix.arch }}"
-          exit 1
-        fi
-    
-    - name: Upload artifacts
+    - name: Upload ARM64 artifact
       uses: actions/upload-artifact@v4
       with:
-        name: hlsdk-xash3d-${{ matrix.arch }}
-        path: artifacts/${{ matrix.arch }}/
-        retention-days: 30
-    
-    - name: Create release assets (on tag)
-      if: startsWith(github.ref, 'refs/tags/')
-      run: |
-        cd artifacts/${{ matrix.arch }}
-        tar -czf ../../hlsdk-xash3d-${{ matrix.arch }}.tar.gz *
-    
-    - name: Upload to release (on tag)
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-${{ matrix.arch }}
-        path: hlsdk-xash3d-${{ matrix.arch }}.tar.gz
+        name: hl-bot-arm64
+        path: artifacts/hl_arm64.so
 
-  create-release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+  combine-artifacts:
+    needs: [build-amd64, build-arm64]
     runs-on: ubuntu-latest
     steps:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
-        pattern: release-*
         merge-multiple: true
     
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
+    - name: List built files
+      run: |
+        echo "=== Built Bot Libraries ==="
+        ls -la *.so
+        echo ""
+        echo "=== File Information ==="
+        for f in *.so; do
+          echo "File: $f"
+          file "$f"
+          echo "Size: $(stat -c%s "$f") bytes"
+          echo ""
+        done
+    
+    - name: Create release package
+      run: |
+        mkdir -p release
+        cp hl_amd64.so release/
+        cp hl_arm64.so release/
+        
+        # Create a simple readme
+        cat > release/README.md << 'EOF'
+        # Half-Life Bot Libraries
+        
+        Built from FWGS/hlsdk-portable bot10 branch
+        
+        ## Files:
+        - `hl_amd64.so` - AMD64/x86_64 bot library
+        - `hl_arm64.so` - ARM64/AArch64 bot library
+        
+        ## Usage:
+        Place the appropriate `hl.so` file in your mod directory alongside xash3d-fwgs engine.
+        EOF
+        
+        tar -czf hl-bots.tar.gz -C release .
+    
+    - name: Upload combined package
+      uses: actions/upload-artifact@v4
       with:
-        files: |
-          hlsdk-xash3d-amd64.tar.gz
-          hlsdk-xash3d-arm64.tar.gz
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: hl-bots-complete
+        path: |
+          hl-bots.tar.gz
+          release/
+        retention-days: 30
