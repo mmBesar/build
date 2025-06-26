@@ -11,144 +11,78 @@ on:
     branches: [ main, master ]
     paths:
       - ".github/workflows/build-hl-bots.yml"
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
-  build-amd64:
+  debug-build:
     runs-on: ubuntu-latest
     steps:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake git
+        sudo apt-get install -y build-essential cmake git python3
     
-    - name: Clone HLSDK Portable (bot10 branch)
+    - name: Clone and inspect HLSDK Portable (bot10 branch)
       run: |
         git clone --depth 1 --branch bot10 https://github.com/FWGS/hlsdk-portable.git
+        cd hlsdk-portable
+        
+        echo "=== Repository Contents ==="
+        ls -la
+        
+        echo "=== CMakeLists.txt exists? ==="
+        ls -la CMakeLists.txt
+        
+        echo "=== WAF exists? ==="
+        ls -la waf*
+        
+        echo "=== DLLs directory ==="
+        ls -la dlls/ | head -10
+        
+        echo "=== Build options in CMakeLists.txt ==="
+        grep -i -A5 -B5 "option\|set.*64\|add_subdirectory.*dll" CMakeLists.txt || true
     
-    - name: Build HLSDK Bot10 (AMD64)
+    - name: Try CMake build with full output
       run: |
         cd hlsdk-portable
-        mkdir build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON -D64BIT=ON -Wno-dev
-        # List available targets first
-        make help | head -20 || true
-        echo "=== Available targets ==="
+        mkdir build_cmake && cd build_cmake
         
-        # Build all targets and find hl.so
-        make -j$(nproc)
+        echo "=== CMake Configure ==="
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON -D64BIT=ON -Wno-dev -DCMAKE_VERBOSE_MAKEFILE=ON
         
-        # Find and verify hl.so
-        echo "=== Looking for hl.so ==="
-        find . -name "hl.so" -type f
+        echo "=== Make Targets ==="
+        make help
         
-        # Copy hl.so
-        mkdir -p ../../artifacts
-        find . -name "hl.so" -type f -exec cp {} ../../artifacts/hl_amd64.so \;
+        echo "=== Building ==="
+        make VERBOSE=1
+        
+        echo "=== What was built? ==="
+        find . -name "*.so" -o -name "*.dll" -o -name "*.dylib"
+        find . -type f -executable
+        ls -laR . | grep -E "\.(so|dll|dylib)$"
     
-    - name: Upload AMD64 artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: hl-bot-amd64
-        path: artifacts/hl_amd64.so
-
-  build-arm64:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Install cross-compilation tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential cmake git gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-    
-    - name: Clone HLSDK Portable (bot10 branch)
-      run: |
-        git clone --depth 1 --branch bot10 https://github.com/FWGS/hlsdk-portable.git
-    
-    - name: Build HLSDK Bot10 (ARM64)
+    - name: Try WAF build
       run: |
         cd hlsdk-portable
-        mkdir build && cd build
-        cmake .. \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DGOLDSOURCE_SUPPORT=ON \
-          -D64BIT=ON \
-          -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-          -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
-          -DCMAKE_SYSTEM_NAME=Linux \
-          -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-          -Wno-dev
-        # List available targets first
-        make help | head -20 || true
-        echo "=== Available targets ==="
         
-        # Build all targets and find hl.so
-        make -j$(nproc)
+        echo "=== WAF Configure ==="
+        python3 waf configure --build-type=release --64bits || python3 waf configure --build-type=release || true
         
-        # Find and verify hl.so
-        echo "=== Looking for hl.so ==="
-        find . -name "hl.so" -type f
+        echo "=== WAF Build ==="
+        python3 waf build || true
         
-        # Copy hl.so
-        mkdir -p ../../artifacts
-        find . -name "hl.so" -type f -exec cp {} ../../artifacts/hl_arm64.so \;
+        echo "=== WAF Build Results ==="
+        find . -name "*.so" -o -name "*.dll" -o -name "*.dylib"
     
-    - name: Upload ARM64 artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: hl-bot-arm64
-        path: artifacts/hl_arm64.so
-
-  combine-artifacts:
-    needs: [build-amd64, build-arm64]
-    runs-on: ubuntu-latest
-    steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        merge-multiple: true
-    
-    - name: List built files
+    - name: Final file search
       run: |
-        echo "=== Built Bot Libraries ==="
-        ls -la *.so
-        echo ""
-        echo "=== File Information ==="
-        for f in *.so; do
-          echo "File: $f"
-          file "$f"
-          echo "Size: $(stat -c%s "$f") bytes"
-          echo ""
-        done
-    
-    - name: Create release package
-      run: |
-        mkdir -p release
-        cp hl_amd64.so release/
-        cp hl_arm64.so release/
+        cd hlsdk-portable
         
-        # Create a simple readme
-        cat > release/README.md << 'EOF'
-        # Half-Life Bot Libraries
+        echo "=== ALL .so files in repository ==="
+        find . -name "*.so" -type f -exec ls -la {} \; -exec file {} \;
         
-        Built from FWGS/hlsdk-portable bot10 branch
+        echo "=== ALL executable files ==="
+        find . -type f -executable -exec file {} \; | head -20
         
-        ## Files:
-        - `hl_amd64.so` - AMD64/x86_64 bot library
-        - `hl_arm64.so` - ARM64/AArch64 bot library
-        
-        ## Usage:
-        Place the appropriate `hl.so` file in your mod directory alongside xash3d-fwgs engine.
-        EOF
-        
-        tar -czf hl-bots.tar.gz -C release .
-    
-    - name: Upload combined package
-      uses: actions/upload-artifact@v4
-      with:
-        name: hl-bots-complete
-        path: |
-          hl-bots.tar.gz
-          release/
-        retention-days: 30
+        echo "=== Contents of build directories ==="
+        ls -laR build* | head -50 || true
