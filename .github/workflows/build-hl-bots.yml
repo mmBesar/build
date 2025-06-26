@@ -1,10 +1,10 @@
 # .github/workflows/build-hl-bots.yml
 
+name: Build HLSDK Bot10
+
 # 🔒 Required for publishing releases
 permissions:
   contents: write
-
-name: Build HLSDK Bot10
 
 on:
   push:
@@ -33,13 +33,20 @@ jobs:
         cd hlsdk-portable
         mkdir build && cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release -DGOLDSOURCE_SUPPORT=ON -D64BIT=ON -Wno-dev
-        make -j$(nproc) hl
+        # List available targets first
+        make help | head -20 || true
+        echo "=== Available targets ==="
         
-        # Verify and copy hl.so
-        ls -la dlls/
-        file dlls/hl.so
+        # Build all targets and find hl.so
+        make -j$(nproc)
+        
+        # Find and verify hl.so
+        echo "=== Looking for hl.so ==="
+        find . -name "hl.so" -type f
+        
+        # Copy hl.so
         mkdir -p ../../artifacts
-        cp dlls/hl.so ../../artifacts/hl_amd64.so
+        find . -name "hl.so" -type f -exec cp {} ../../artifacts/hl_amd64.so \;
     
     - name: Upload AMD64 artifact
       uses: actions/upload-artifact@v4
@@ -72,13 +79,20 @@ jobs:
           -DCMAKE_SYSTEM_NAME=Linux \
           -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
           -Wno-dev
-        make -j$(nproc) hl
+        # List available targets first
+        make help | head -20 || true
+        echo "=== Available targets ==="
         
-        # Verify and copy hl.so
-        ls -la dlls/
-        file dlls/hl.so
+        # Build all targets and find hl.so
+        make -j$(nproc)
+        
+        # Find and verify hl.so
+        echo "=== Looking for hl.so ==="
+        find . -name "hl.so" -type f
+        
+        # Copy hl.so
         mkdir -p ../../artifacts
-        cp dlls/hl.so ../../artifacts/hl_arm64.so
+        find . -name "hl.so" -type f -exec cp {} ../../artifacts/hl_arm64.so \;
     
     - name: Upload ARM64 artifact
       uses: actions/upload-artifact@v4
